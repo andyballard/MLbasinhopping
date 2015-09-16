@@ -13,6 +13,7 @@ import theano.tensor as T
 from pele.potentials import BasePotential
 from pele.systems import BaseSystem
 
+from MLbasinhopping.base import BaseModel, MLSystem
 from MLbasinhopping.NN.mlp import MLP
 
 def get_data():
@@ -38,7 +39,7 @@ def get_data():
     return x, t, test_x, test_t
 
 
-class NNPotential(BasePotential):
+class NNModel(BaseModel):
     def __init__(self, ndata=1000, n_hidden=10, L1_reg=0.00, L2_reg=0.0001, bias_reg=0.00):
         
         train_x, train_t, test_x, test_t = get_data()
@@ -156,7 +157,7 @@ class NNPotential(BasePotential):
             p.set_value(params_vec[i:i+npar].reshape(self.param_shapes[count]))
             i += npar
     
-    def getEnergy(self, params):
+    def cost(self, params):
         return self.getEnergyGradient(params)[0]
         
     def getValidationError(self, params):
@@ -164,7 +165,7 @@ class NNPotential(BasePotential):
         self.set_params(params)
         return self.theano_testset_errors()
         
-    def getEnergyGradient(self, params):
+    def costGradient(self, params):
         # the params are stored as shared variables so we have to update
         # them in memory before computing the cost.
         self.set_params(params)
@@ -185,14 +186,10 @@ def myquench(coords, pot, tol, **kwargs):
         
     return ret
   
-class NNSystem(BaseSystem):
-    def __init__(self,  minimizer_tolerance=1.0e-5, *args, **kwargs):
-        super(NNSystem, self).__init__()
-        self.potential = NNPotential(*args, **kwargs)
+class NNSystem(MLSystem):
+    def __init__(self, model, minimizer_tolerance=1.0e-5, *args, **kwargs):
+        super(NNSystem, self).__init__(model)
         self.minimizer_tolerance = minimizer_tolerance
-    
-    def get_potential(self):
-        return self.potential
 
     def get_minimizer(self, nsteps=1e5, M=4, iprint=1, maxstep=1.0, **kwargs):
         from pele.optimize import lbfgs_cpp as quench
@@ -200,31 +197,25 @@ class NNSystem(BaseSystem):
                                      nsteps=nsteps, M=M, iprint=iprint, 
                                      maxstep=maxstep, 
                                      **kwargs)
-#         return lambda coords: myquench(coords, self.get_potential(), tol=1.0e-10, nsteps=100000, iprint=100, M=400, **kwargs)
-#         return lambda coords: myquench(coords, self.get_potential(), tol, tol=1.0e-10, **kwargs)
-
-    def get_mindist(self):
-        # no permutations of parameters
-        return lambda x1,x2: (np.linalg.norm(x1-x2),x1,x2)
-        
-    def get_orthogonalize_to_zero_eigenvectors(self):
-        return None
     
 def test():
-    system = NNSystem()
+    
+    model = NNModel()
+    system = NNSystem(model)
     t = system.get_potential()
-            
+    
+    nparams = model.nparams        
     print "get_energy_gradient"
-    newparams = np.random.uniform(-.05, .05, t.nparams)
+    newparams = np.random.uniform(-.05, .05, nparams)
     e, g = t.getEnergyGradient(newparams)
     print "cost", e
     
     print "\n\nagain\nget_energy_gradient"
-    newparams = np.random.uniform(-.05, .05, t.nparams)
+    newparams = np.random.uniform(-.05, .05, nparams)
     e, g = t.getEnergyGradient(newparams)
     print "cost", e
     
-    params = t.get_params()
+    params = model.get_params()
     print params
     dx = np.max(np.abs(params - newparams))
     print dx
