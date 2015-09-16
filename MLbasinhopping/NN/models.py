@@ -13,9 +13,7 @@ import theano.tensor as T
 from pele.potentials import BasePotential
 from pele.systems import BaseSystem
 
-from logistic_sgd import LogisticRegression, load_data
-from mlp import HiddenLayer, MLP
-
+from MLbasinhopping.NN.mlp import MLP
 
 def get_data():
     
@@ -188,7 +186,7 @@ def myquench(coords, pot, tol, **kwargs):
     return ret
   
 class NNSystem(BaseSystem):
-    def __init__(self, *args, minimizer_tolerance=1.0e-5, **kwargs):
+    def __init__(self,  minimizer_tolerance=1.0e-5, *args, **kwargs):
         super(NNSystem, self).__init__()
         self.potential = NNPotential(*args, **kwargs)
         self.minimizer_tolerance = minimizer_tolerance
