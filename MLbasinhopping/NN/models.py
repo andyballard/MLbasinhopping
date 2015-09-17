@@ -121,9 +121,7 @@ class NNModel(BaseModel):
     
         self.nparams = sum([p.get_value().size for p in classifier.params])
         self.param_sizes = [p.get_value().size for p in classifier.params]
-        self.param_shapes = [p.get_value().shape for p in classifier.params]
-    
-                  
+        self.param_shapes = [p.get_value().shape for p in classifier.params]             
     
     def _cost_gradient(self):
         ret = self.theano_cost_gradient()
