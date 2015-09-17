@@ -3,11 +3,14 @@ import matplotlib.pyplot as plt
 
 def run_basinhopping(system, nsteps, database):
     
-    x0 = np.random.random(system.model.params.eval().size)
+    x0 = np.random.random(system.model.nparams)
     
     from pele.takestep import RandomCluster
     step = RandomCluster(volume=5.0)
-    bh = system.get_basinhopping(database=database, takestep=step,coords=x0,temperature = 10000.0)
+    bh = system.get_basinhopping(database=database, 
+                                 takestep=step,
+                                 coords=x0,
+                                 temperature = 10000.0)
     #bh.stepsize = 20.
     bh.run(nsteps)
     print "found", len(database.minima()), "minima"

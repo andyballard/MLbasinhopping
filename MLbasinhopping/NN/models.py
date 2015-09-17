@@ -18,8 +18,11 @@ from MLbasinhopping.NN.mlp import MLP
 
 def get_data():
     
+    __location__ = os.path.realpath(
+    os.path.join(os.getcwd(), os.path.dirname(__file__)))
+    
     dataset = "mnist.pkl.gz"
-    with gzip.open(dataset) as f:
+    with gzip.open(os.path.join(__location__, dataset)) as f:
         train_set, valid_set, test_set = cPickle.load(f)
     
     # training data
@@ -156,7 +159,7 @@ class NNModel(BaseModel):
             i += npar
     
     def cost(self, params):
-        return self.getEnergyGradient(params)[0]
+        return self.costGradient(params)[0]
         
     def getValidationError(self, params):
         # returns the fraction of misassignments for test set
