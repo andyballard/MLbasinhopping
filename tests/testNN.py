@@ -22,7 +22,8 @@ class CheckCorrectOutput(unittest.TestCase):
         L1_reg=0.0
         bias_reg = 0.0
         
-        model = NNSGDModel(ndata=ndata, n_hidden=n_hidden, L1_reg=L1_reg, L2_reg=L2_reg, bias_reg=bias_reg)
+#         model = NNSGDModel(ndata=ndata, n_hidden=n_hidden, L1_reg=L1_reg, L2_reg=L2_reg, bias_reg=bias_reg)
+        model = NNModel(ndata=ndata, n_hidden=n_hidden, L1_reg=L1_reg, L2_reg=L2_reg, bias_reg=bias_reg)
         self.system = NNSystem(model)
 
         self.db = self.system.create_database()
