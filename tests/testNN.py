@@ -43,7 +43,7 @@ class CheckCorrectOutput(unittest.TestCase):
         quench = self.system.get_minimizer()
         coords = np.random.random(self.system.model.nparams)
         ret = quench(coords)
-        self.assertAlmostEqual(ret.energy, 3.750895922, msg="Error: Quenched energy = "+str(ret.energy))
+        self.assertAlmostEqual(ret.energy, 3.3958271, msg="Error: Quenched energy = "+str(ret.energy))
 
 #         self.assertEqual(Nminima, 5, msg="Nminima: "+str(Nminima)+" != 5")
 

@@ -172,8 +172,11 @@ class NNModel(BaseModel):
 #         x = theano.shared(value=np.asarray(train_x), name='x')  # the data is presented as rasterized images
 #         t = theano.shared(value=np.asarray(train_t), name='t')  # the labels are presented as 1D vector of
                             # [int] labels
-        x = train_x[:ndata]
-        t = train_t[:ndata]
+        self.train_x = self.train_x[:ndata]
+        self.train_t = self.train_t[:ndata]
+        
+        x = self.train_x
+        t = self.train_t
             
         rng = numpy.random.RandomState(1234)
         
@@ -214,8 +217,8 @@ class NNModel(BaseModel):
 #                outputs=self.classifier.errors(t),
                 outputs=self.classifier.errors_vector(t),
                givens={
-                       x: test_x,
-                       t: test_t
+                       x: self.test_x,
+                       t: self.test_t
                        }                                          
                )
         
@@ -225,7 +228,7 @@ class NNModel(BaseModel):
 #                outputs=self.classifier.errors(t),
                 outputs=self.classifier.logRegressionLayer.p_y_given_x,
                givens={
-                       x: test_x
+                       x: self.test_x
                        }                                          
                )        
     #    res = get_gradient(train_x, train_t)
