@@ -16,6 +16,60 @@ from pele.systems import BaseSystem
 from MLbasinhopping.base import BaseModel, MLSystem
 from MLbasinhopping.NN.mlp import MLP
 
+def load_data(dataset):
+    ''' Loads the dataset
+
+    :type dataset: string
+    :param dataset: the path to the dataset (here MNIST)
+    '''
+
+    #############
+    # LOAD DATA #
+    #############
+
+    # Download the MNIST dataset if it is not present
+    data_dir, data_file = os.path.split(dataset)
+    if data_dir == "" and not os.path.isfile(dataset):
+        # Check if dataset is in the data directory.
+        new_path = os.path.join(
+            os.path.split(__file__)[0],
+            "..",
+            "data",
+            dataset
+        )
+        if os.path.isfile(new_path) or data_file == 'mnist.pkl.gz':
+            dataset = new_path
+
+    if (not os.path.isfile(dataset)) and data_file == 'mnist.pkl.gz':
+        import urllib
+        origin = (
+            'http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz'
+        )
+        print 'Downloading data from %s' % origin
+        urllib.urlretrieve(origin, dataset)
+
+    print '... loading data'
+
+    # Load the dataset
+    f = gzip.open(dataset, 'rb')
+    train_set, valid_set, test_set = cPickle.load(f)
+    f.close()
+    #train_set, valid_set, test_set format: tuple(input, target)
+    #input is an numpy.ndarray of 2 dimensions (a matrix)
+    #witch row's correspond to an example. target is a
+    #numpy.ndarray of 1 dimensions (vector)) that have the same length as
+    #the number of rows in the input. It should give the target
+    #target to the example with the same index in the input.
+    test_set_x, test_set_y = test_set
+    valid_set_x, valid_set_y = valid_set
+    train_set_x, train_set_y = train_set
+    
+    rval = [(train_set_x, train_set_y),
+            (test_set_x, test_set_y), 
+            (valid_set_x, valid_set_y)]
+    
+    return rval
+
 def get_data():
     
     __location__ = os.path.realpath(
@@ -45,12 +99,20 @@ def get_data():
 class NNModel(BaseModel):
     def __init__(self, ndata=1000, n_hidden=10, L1_reg=0.00, L2_reg=0.0001, bias_reg=0.00):
         
-        train_x, train_t, test_x, test_t = get_data()
-        train_x = train_x[:ndata,:]
-        train_t = train_t[:ndata]
+        train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz")
+        train_x = train[0][:ndata,:]
+        train_t = train[1][:ndata]
         train_t = np.asarray(train_t, dtype="int32")
-    
+
         self.train_t = train_t
+        test_x = test[0]
+        test_t = test[1]
+        test_t = np.asarray(test_t, dtype="int32")
+        print train_x.shape, train_t.shape
+        print test_x.shape, test_t.shape        
+        self.train_x = train_x
+        self.train_t = train_t
+        self.test_x = test_x
         self.test_t = test_t
         
         self.L1_reg = L1_reg
