@@ -164,18 +164,22 @@ class NNModel(BaseModel):
         # Make it shared so it cab be passed only once 
         # allocate symbolic variables for the data
 
+        # allocate symbolic variables for the data
+        self.x = T.matrix('x')  # the data is presented as rasterized images
+        self.t = T.ivector('t')  # the labels are presented as 1D vector of
+                        # [int] labels
 #         x = theano.shared(value=np.asarray(train_x), name='x')  # the data is presented as rasterized images
 #         t = theano.shared(value=np.asarray(train_t), name='t')  # the labels are presented as 1D vector of
                             # [int] labels
-        x = train_x[:ndata]
-        t = train_t[:ndata]
+#         x = train_x[:ndata]
+#         t = train_t[:ndata]
             
         rng = numpy.random.RandomState(1234)
         
         # construct the MLP class
         classifier = MLP(
             rng=rng,
-            input=x,
+            input=self.x,
             n_in=28 * 28,
             n_hidden=n_hidden,
             n_out=10
@@ -185,33 +189,45 @@ class NNModel(BaseModel):
         # the cost we minimize during training is the negative log likelihood of
         # the model plus the regularization terms (L1 and L2); cost is expressed
         # here symbolically
-        cost = (
-            classifier.negative_log_likelihood(t)
+        _cost = (
+            classifier.negative_log_likelihood(self.t)
             + L1_reg * classifier.L1
             + L2_reg * classifier.L2_sqr
             + bias_reg* classifier.bias_sqr
         )
-        self.theano_cost = cost
+        self._cost = _cost
+        self.theano_cost = theano.function(
+            inputs=(),
+            outputs=_cost,
+            givens = {
+                      self.x: train_x,
+                      self.t: train_t
+                      }
+        )
         
         # compute the gradient of cost with respect to theta (sotred in params)
         # the resulting gradients will be stored in a list gparams
-        gparams = [T.grad(cost, param) for param in classifier.params]
+        gparams = [T.grad(_cost, param) for param in classifier.params]
         self.gparams = gparams
         
-        outputs = [cost] + gparams
+        outputs = [_cost] + gparams
         self.theano_cost_gradient = theano.function(
                inputs=(),
-               outputs=outputs
-               )
+               outputs=outputs,
+               givens = {
+                      self.x: train_x,
+                      self.t: train_t
+                      }
+            )
         
         # compute the errors applied to test set
         self.theano_testset_errors = theano.function(
                inputs=(),
 #                outputs=self.classifier.errors(t),
-                outputs=self.classifier.errors_vector(t),
+                outputs=self.classifier.errors_vector(self.t),
                givens={
-                       x: test_x,
-                       t: test_t
+                       self.x: test_x,
+                       self.t: test_t
                        }                                          
                )
         
@@ -221,7 +237,7 @@ class NNModel(BaseModel):
 #                outputs=self.classifier.errors(t),
                 outputs=self.classifier.logRegressionLayer.p_y_given_x,
                givens={
-                       x: test_x
+                       self.x: test_x
                        }                                          
                )        
     #    res = get_gradient(train_x, train_t)
@@ -285,26 +301,24 @@ class NNSGDModel(NNModel):
         
         
         index = T.lscalar()  # index to a [mini]batch
-        xbatch = T.matrix('x')  # the data is presented as rasterized images
-        tbatch = T.ivector('t')  # the labels are presented as 1D vector of      
         
         test_model = theano.function(
             inputs=[index],
-            outputs=self.classifier.errors(tbatch),
+            outputs=self.classifier.errors(self.t),
             givens={
-                xbatch: self.test_x[index :(index + 1) ],
+                self.x: self.test_x[index :(index + 1) ],
 #                 x: self.test_x[index * batch_size:(index + 1) * batch_size],
-                tbatch: self.test_t[index * batch_size:(index + 1) * batch_size]
+                self.t: self.test_t[index * batch_size:(index + 1) * batch_size]
             },
             on_unused_input='warn'
         )
 
         validate_model = theano.function(
             inputs=[index],
-            outputs=self.classifier.errors(tbatch),
+            outputs=self.classifier.errors(self.t),
             givens={
-                xbatch: self.valid_x[index * batch_size:(index + 1) * batch_size],
-                tbatch: self.valid_t[index * batch_size:(index + 1) * batch_size]
+                self.x: self.valid_x[index * batch_size:(index + 1) * batch_size],
+                self.t: self.valid_t[index * batch_size:(index + 1) * batch_size]
             },
             on_unused_input='warn'
         )
@@ -327,11 +341,11 @@ class NNSGDModel(NNModel):
         # defined in `updates`
         train_model = theano.function(
             inputs=[index],
-            outputs=self.theano_cost,
+            outputs=self._cost,
             updates=updates,
             givens={
-                xbatch: self.train_x[index * batch_size: (index + 1) * batch_size],
-                tbatch: self.train_t[index * batch_size: (index + 1) * batch_size]
+                self.x: self.train_x[index * batch_size: (index + 1) * batch_size],
+                self.t: self.train_t[index * batch_size: (index + 1) * batch_size]
             }
         )
         
