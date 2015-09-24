@@ -5,7 +5,7 @@ import sys
 
 from MLbasinhopping.utils import run_basinhopping, run_double_ended_connect, make_disconnectivity_graph
 
-from MLbasinhopping.NN.models import NNSystem, NNModel
+from MLbasinhopping.NN.models import NNSystem, NNModel, NNSGDModel
 
 class CheckCorrectOutput(unittest.TestCase):
 
@@ -22,7 +22,7 @@ class CheckCorrectOutput(unittest.TestCase):
         L1_reg=0.0
         bias_reg = 0.0
         
-        model = NNModel(ndata=ndata, n_hidden=n_hidden, L1_reg=L1_reg, L2_reg=L2_reg, bias_reg=bias_reg)
+        model = NNSGDModel(ndata=ndata, n_hidden=n_hidden, L1_reg=L1_reg, L2_reg=L2_reg, bias_reg=bias_reg)
         self.system = NNSystem(model)
 
         self.db = self.system.create_database()

@@ -225,6 +225,8 @@ def test_mlp(learning_rate=0.01, L1_reg=0.00, L2_reg=0.0001, n_epochs=1000,
 
 
    """
+    from MLbasinhopping.NN.models import load_data
+   
     datasets = load_data(dataset)
 
     train_set_x, train_set_y = datasets[0]

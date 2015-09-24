@@ -60,9 +60,35 @@ def load_data(dataset):
     #numpy.ndarray of 1 dimensions (vector)) that have the same length as
     #the number of rows in the input. It should give the target
     #target to the example with the same index in the input.
-    test_set_x, test_set_y = test_set
-    valid_set_x, valid_set_y = valid_set
-    train_set_x, train_set_y = train_set
+    
+    def shared_dataset(data_xy, borrow=True):
+        """ Function that loads the dataset into shared variables
+
+        The reason we store our dataset in shared variables is to allow
+        Theano to copy it into the GPU memory (when code is run on GPU).
+        Since copying data into the GPU is slow, copying a minibatch everytime
+        is needed (the default behaviour if the data is not in a shared
+        variable) would lead to a large decrease in performance.
+        """
+        data_x, data_y = data_xy
+        shared_x = theano.shared(numpy.asarray(data_x,
+                                               dtype=theano.config.floatX),
+                                 borrow=borrow)
+        shared_y = theano.shared(numpy.asarray(data_y,
+                                               dtype=theano.config.floatX),
+                                 borrow=borrow)
+        # When storing data on the GPU it has to be stored as floats
+        # therefore we will store the labels as ``floatX`` as well
+        # (``shared_y`` does exactly that). But during our computations
+        # we need them as ints (we use labels as index, and if they are
+        # floats it doesn't make sense) therefore instead of returning
+        # ``shared_y`` we will have to cast it to int. This little hack
+        # lets ous get around this issue
+        return shared_x, T.cast(shared_y, 'int32')
+    
+    test_set_x, test_set_y = shared_dataset(test_set)
+    valid_set_x, valid_set_y = shared_dataset(valid_set)
+    train_set_x, train_set_y = shared_dataset(train_set)
     
     rval = [(train_set_x, train_set_y),
             (test_set_x, test_set_y), 
@@ -99,39 +125,58 @@ class NNModel(BaseModel):
     def __init__(self, ndata=1000, n_hidden=10, L1_reg=0.00, L2_reg=0.0001, bias_reg=0.00):
         
         train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz")
-        train_x = train[0][:ndata,:]
-        train_t = train[1][:ndata]
-        train_t = np.asarray(train_t, dtype="int32")
+#         train_x = train[0][:ndata,:]
+#         train_t = train[1][:ndata]
+        train_x = train[0]
+        train_t = train[1]
+#         train_t = np.asarray(train_t, dtype="int32")
 
         self.train_t = train_t
         test_x = test[0]
         test_t = test[1]
-        test_t = np.asarray(test_t, dtype="int32")
-        print train_x.shape, train_t.shape
-        print test_x.shape, test_t.shape        
+        valid_x = valid[0]
+        valid_t = valid[1]
+        
+#         test_t = np.asarray(test_t, dtype="int32")
+#         valid_t = np.asarray(test_t, dtype="int32")
+   
         self.train_x = train_x
         self.train_t = train_t
         self.test_x = test_x
         self.test_t = test_t
+        self.valid_x = valid_x
+        self.valid_t = valid_t
+        
+           
+        print self.train_x.shape, self.train_t.shape
+        print self.test_x.shape, self.test_t.shape
+        print self.valid_x.shape, self.valid_t.shape
+        
+        print self.train_x
         
         self.L1_reg = L1_reg
         self.L2_reg = L2_reg
         self.bias_reg = bias_reg
         
-        print "range of target values: ", set(train_t)
         # allocate symbolic variables for the data.  
         # Make it shared so it cab be passed only once 
-        x = theano.shared(value=train_x, name='x')  # the data is presented as rasterized images
-        t = theano.shared(value=train_t, name='t')  # the labels are presented as 1D vector of
+        # allocate symbolic variables for the data
+        self.index = T.lscalar()  # index to a [mini]batch
+        self.x = T.matrix('x')  # the data is presented as rasterized images
+        self.t = T.ivector('t')  # the labels are presented as 1D vector of
+
+        print self.t.shape
+
+#         x = theano.shared(value=train_x, name='x')  # the data is presented as rasterized images
+#         t = theano.shared(value=train_t, name='t')  # the labels are presented as 1D vector of
                             # [int] labels
-    
-        
+            
         rng = numpy.random.RandomState(1234)
         
         # construct the MLP class
         classifier = MLP(
             rng=rng,
-            input=x,
+            input=self.x,
             n_in=28 * 28,
             n_hidden=n_hidden,
             n_out=10
@@ -142,16 +187,18 @@ class NNModel(BaseModel):
         # the model plus the regularization terms (L1 and L2); cost is expressed
         # here symbolically
         cost = (
-            classifier.negative_log_likelihood(t)
+            classifier.negative_log_likelihood(self.t)
             + L1_reg * classifier.L1
             + L2_reg * classifier.L2_sqr
             + bias_reg* classifier.bias_sqr
         )
-
+        self.theano_cost = cost
+        
         # compute the gradient of cost with respect to theta (sotred in params)
         # the resulting gradients will be stored in a list gparams
         gparams = [T.grad(cost, param) for param in classifier.params]
-    
+        self.gparams = gparams
+        
         outputs = [cost] + gparams
         self.theano_cost_gradient = theano.function(
                inputs=(),
@@ -162,10 +209,10 @@ class NNModel(BaseModel):
         self.theano_testset_errors = theano.function(
                inputs=(),
 #                outputs=self.classifier.errors(t),
-                outputs=self.classifier.errors_vector(t),
+                outputs=self.classifier.errors_vector(self.t),
                givens={
-                       x: test_x,
-                       t: test_t
+                       self.x: test_x,
+                       self.t: test_t
                        }                                          
                )
         
@@ -175,7 +222,7 @@ class NNModel(BaseModel):
 #                outputs=self.classifier.errors(t),
                 outputs=self.classifier.logRegressionLayer.p_y_given_x,
                givens={
-                       x: test_x
+                       self.x: test_x
                        }                                          
                )        
     #    res = get_gradient(train_x, train_t)
@@ -234,8 +281,53 @@ class NNModel(BaseModel):
         return self._cost_gradient()
 
 class NNSGDModel(NNModel):
-    def __init__(self, *args, **kwargs):
-        super(NNSGDModel).__init__(*args, **kwargs)
+    def __init__(self, batch_size = 20, learning_rate = 0.01, *args, **kwargs):
+        super(NNSGDModel, self).__init__(*args, **kwargs)
+        
+        test_model = theano.function(
+            inputs=[self.index],
+            outputs=self.classifier.errors(self.t),
+            givens={
+                self.x: self.test_x[self.index :(self.index + 1) ],
+#                 x: self.test_x[self.index * batch_size:(self.index + 1) * batch_size],
+                self.t: self.test_t[self.index * batch_size:(self.index + 1) * batch_size]
+            }
+        )
+
+        validate_model = theano.function(
+            inputs=[self.index],
+            outputs=self.classifier.errors(self.t),
+            givens={
+                self.x: self.valid_x[self.index * batch_size:(self.index + 1) * batch_size],
+                self.t: self.valid_t[self.index * batch_size:(self.index + 1) * batch_size]
+            }
+        )
+    
+    
+        # specify how to update the parameters of the model as a list of
+        # (variable, update expression) pairs
+    
+        # given two list the zip A = [a1, a2, a3, a4] and B = [b1, b2, b3, b4] of
+        # same length, zip generates a list C of same size, where each element
+        # is a pair formed from the two lists :
+        #    C = [(a1, b1), (a2, b2), (a3, b3), (a4, b4)]
+        updates = [
+            (param, param - learning_rate * gparam)
+            for param, gparam in zip(self.classifier.params, self.gparams)
+        ]
+    
+        # compiling a Theano function `train_model` that returns the cost, but
+        # in the same time updates the parameter of the model based on the rules
+        # defined in `updates`
+        train_model = theano.function(
+            inputs=[self.index],
+            outputs=self.theano_cost,
+            updates=updates,
+            givens={
+                self.x: self.train_x[self.index * batch_size: (self.index + 1) * batch_size],
+                self.t: self.train_y[self.index * batch_size: (self.index + 1) * batch_size]
+            }
+        )
         
     def sgd(self, coords):
         class Dummy(object):
