@@ -94,8 +94,7 @@ def get_data():
     test_t = test_set[1].astype('int32')
 
     return x, t, test_x, test_t
-
-
+        
 class NNModel(BaseModel):
     def __init__(self, ndata=1000, n_hidden=10, L1_reg=0.00, L2_reg=0.0001, bias_reg=0.00):
         
@@ -234,6 +233,17 @@ class NNModel(BaseModel):
         self.set_params(params)
         return self._cost_gradient()
 
+class NNSGDModel(NNModel):
+    def __init__(self, *args, **kwargs):
+        super(NNSGDModel).__init__(*args, **kwargs)
+        
+    def sgd(self, coords):
+        class Dummy(object):
+            def __init__(self, coords):
+                self.coords = coords
+        
+        return Dummy(coords)
+    
 def myquench(coords, pot, tol, **kwargs):
     """ This quench checks the rmsgrad condition is satisfied, and keeps quenching until this is the case
     """
@@ -248,18 +258,31 @@ def myquench(coords, pot, tol, **kwargs):
         coords = ret.coords
         
     return ret
-  
+
+def quench_with_sgd(coords, model, lbfgs_quench):
+    
+    sgd_ret = model.sgd(coords)
+    
+    return lbfgs_quench(sgd_ret.coords)
+    
+    
 class NNSystem(MLSystem):
     def __init__(self, model, minimizer_tolerance=1.0e-5, *args, **kwargs):
         super(NNSystem, self).__init__(model)
         self.minimizer_tolerance = minimizer_tolerance
 
     def get_minimizer(self, nsteps=1e5, M=4, iprint=0, maxstep=1.0, **kwargs):
-        from pele.optimize import lbfgs_cpp as quench
-        return lambda coords: quench(coords, self.get_potential(), tol=self.minimizer_tolerance, 
+        from pele.optimize import lbfgs_cpp
+        
+        lbfgs_quench = lambda coords: lbfgs_cpp(coords, self.get_potential(), tol=self.minimizer_tolerance, 
                                      nsteps=nsteps, M=M, iprint=iprint, 
                                      maxstep=maxstep, 
                                      **kwargs)
+        if hasattr(self.model, "sgd"):
+            return lambda coords: quench_with_sgd(coords, self.model, lbfgs_quench)
+        
+        else:
+            return lbfgs_quench
     
 def test():
     
