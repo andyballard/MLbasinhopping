@@ -27,7 +27,9 @@ class CheckCorrectOutput(unittest.TestCase):
         self.system = NNSystem(model)
 
         self.db = self.system.create_database()
-         
+   
+        pot = self.system.get_potential()
+        print "Energy: ", pot.getEnergy(np.random.random(self.system.model.nparams))      
 #         run_basinhopping(system, nsteps, db)     
 
         # connect minima
