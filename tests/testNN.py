@@ -27,9 +27,22 @@ class CheckCorrectOutput(unittest.TestCase):
         self.system = NNSystem(model)
 
         self.db = self.system.create_database()
-   
+    
+    def test_minimizer(self):
+        
+        quench = self.system.get_minimizer()
+        coords = np.random.random(self.system.model.nparams)
+        ret = quench(coords)
+        self.assertAlmostEqual(ret.energy, 3.02478820124, msg="Error: Quenched energy = "+str(ret.energy))
+           
+    def test_initial_energy(self):
+       
         pot = self.system.get_potential()
-        print "Energy: ", pot.getEnergy(np.random.random(self.system.model.nparams))      
+
+        Eref=1493.6103675
+        E = pot.getEnergy(np.random.random(self.system.model.nparams))
+        self.assertAlmostEqual(E, Eref,
+                               msg="Energy " + str(E) + " != "+str(Eref))    
 #         run_basinhopping(system, nsteps, db)     
 
         # connect minima
@@ -37,15 +50,7 @@ class CheckCorrectOutput(unittest.TestCase):
             
         # connect minima
 #         make_disconnectivity_graph(system, db)
-    
-    def test_minima(self):
-        
-        quench = self.system.get_minimizer()
-        coords = np.random.random(self.system.model.nparams)
-        ret = quench(coords)
-        self.assertAlmostEqual(ret.energy, 3.3958271, msg="Error: Quenched energy = "+str(ret.energy))
 
-#         self.assertEqual(Nminima, 5, msg="Nminima: "+str(Nminima)+" != 5")
 
 
 #     def test_costGradient(self):
