@@ -132,19 +132,23 @@ class NNModel(BaseModel):
         self.L2_reg = L2_reg
         self.bias_reg = bias_reg
         
-        train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz", ndata)
+        train_x, train_t, test_x, test_t = get_data()
+        train_x = train_x[:ndata]
+        train_t = train_t[:ndata]
+        train_t = np.asarray(train_t, dtype='int32')
+#         train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz", ndata)
 #         train_x = train[0][:ndata,:]
 #         train_t = train[1][:ndata]
         #TODO: set data size limits for ndata
-        train_x = train[0]
-        train_t = train[1]
+#         train_x = train[0]
+#         train_t = train[1]
 #         train_t = np.asarray(train_t, dtype="int32")
 
         self.train_t = train_t
-        test_x = test[0]
-        test_t = test[1]
-        valid_x = valid[0]
-        valid_t = valid[1]
+#         test_x = test[0]
+#         test_t = test[1]
+        valid_x = []
+        valid_t = []
         
         
 #         test_t = np.asarray(test_t, dtype="int32")
@@ -160,7 +164,7 @@ class NNModel(BaseModel):
            
         print self.train_x.shape, self.train_t.shape
         print self.test_x.shape, self.test_t.shape
-        print self.valid_x.shape, self.valid_t.shape
+#         print self.valid_x.shape, self.valid_t.shape
         
         print self.train_x
         
@@ -178,8 +182,8 @@ class NNModel(BaseModel):
 #         self.train_x = self.train_x[:ndata]
 #         self.train_t = self.train_t[:ndata]
         
-        x = self.train_x
-        t = self.train_t
+        x = theano.shared(np.asarray(self.train_x, dtype=theano.config.floatX), borrow=True, name='x')
+        t = T.cast(theano.shared(np.asarray(self.train_t, dtype=theano.config.floatX), borrow=True, name='t'), 'int32')
             
         rng = numpy.random.RandomState(1234)
         
@@ -219,10 +223,10 @@ class NNModel(BaseModel):
                inputs=(),
 #                outputs=self.classifier.errors(t),
                 outputs=self.classifier.errors_vector(t),
-               givens={
-                       x: self.test_x,
-                       t: self.test_t
-                       }                                          
+#                givens={
+#                        x: self.test_x,
+#                        t: self.test_t
+#                        }                                          
                )
         
         # compute the softmax output from test set
@@ -230,9 +234,9 @@ class NNModel(BaseModel):
                inputs=(),
 #                outputs=self.classifier.errors(t),
                 outputs=self.classifier.logRegressionLayer.p_y_given_x,
-               givens={
-                       x: self.test_x
-                       }                                          
+#                givens={
+#                        x: self.test_x
+#                        }                                          
                )        
     #    res = get_gradient(train_x, train_t)
     #    print "result"
