@@ -16,7 +16,7 @@ from pele.systems import BaseSystem
 from MLbasinhopping.base import BaseModel, MLSystem
 from MLbasinhopping.NN.mlp import MLP
 
-def load_data(dataset, ndata=1000):
+def load_data(dataset):
     ''' Loads the dataset
 
     :type dataset: string
@@ -60,9 +60,6 @@ def load_data(dataset, ndata=1000):
     #numpy.ndarray of 1 dimensions (vector)) that have the same length as
     #the number of rows in the input. It should give the target
     #target to the example with the same index in the input.
-
-    # keep training set minimal
-    train_set = (train_set[0][:ndata], train_set[1][:ndata])
     
     def shared_dataset(data_xy, borrow=True):
         """ Function that loads the dataset into shared variables
@@ -132,7 +129,7 @@ class NNModel(BaseModel):
         self.L2_reg = L2_reg
         self.bias_reg = bias_reg
         
-        train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz", ndata)
+        train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz")
 #         train_x = train[0][:ndata,:]
 #         train_t = train[1][:ndata]
         #TODO: set data size limits for ndata
@@ -175,8 +172,8 @@ class NNModel(BaseModel):
 #         x = theano.shared(value=np.asarray(train_x), name='x')  # the data is presented as rasterized images
 #         t = theano.shared(value=np.asarray(train_t), name='t')  # the labels are presented as 1D vector of
                             # [int] labels
-#         self.train_x = self.train_x[:ndata]
-#         self.train_t = self.train_t[:ndata]
+        self.train_x = self.train_x[:ndata]
+        self.train_t = self.train_t[:ndata]
         
         x = self.train_x
         t = self.train_t
