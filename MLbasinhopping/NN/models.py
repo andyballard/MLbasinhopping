@@ -175,8 +175,8 @@ class NNModel(BaseModel):
 #         x = theano.shared(value=np.asarray(train_x), name='x')  # the data is presented as rasterized images
 #         t = theano.shared(value=np.asarray(train_t), name='t')  # the labels are presented as 1D vector of
                             # [int] labels
-        self.train_x = self.train_x[:ndata]
-        self.train_t = self.train_t[:ndata]
+#         self.train_x = self.train_x[:ndata]
+#         self.train_t = self.train_t[:ndata]
         
         x = self.train_x
         t = self.train_t
