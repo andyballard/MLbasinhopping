@@ -16,7 +16,7 @@ from pele.systems import BaseSystem
 from MLbasinhopping.base import BaseModel, MLSystem
 from MLbasinhopping.NN.mlp import MLP
 
-def load_data(dataset):
+def load_data(dataset, ndata):
     ''' Loads the dataset
 
     :type dataset: string
@@ -60,6 +60,9 @@ def load_data(dataset):
     #numpy.ndarray of 1 dimensions (vector)) that have the same length as
     #the number of rows in the input. It should give the target
     #target to the example with the same index in the input.
+    
+    train_set = (train_set[0][:ndata],
+                 train_set[1][:ndata])
     
     def shared_dataset(data_xy, borrow=True):
         """ Function that loads the dataset into shared variables
@@ -129,7 +132,7 @@ class NNModel(BaseModel):
         self.L2_reg = L2_reg
         self.bias_reg = bias_reg
         
-        train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz")
+        train, test, valid = load_data("/home/ab2111/source/MLbasinhopping/MLbasinhopping/NN/mnist.pkl.gz", ndata)
 #         train_x = train[0][:ndata,:]
 #         train_t = train[1][:ndata]
         #TODO: set data size limits for ndata
@@ -172,9 +175,9 @@ class NNModel(BaseModel):
 #         x = theano.shared(value=np.asarray(train_x), name='x')  # the data is presented as rasterized images
 #         t = theano.shared(value=np.asarray(train_t), name='t')  # the labels are presented as 1D vector of
                             # [int] labels
-        self.train_x = self.train_x[:ndata]
-        self.train_t = self.train_t[:ndata]
-        
+#         self.train_x = self.train_x[:ndata]
+#         self.train_t = self.train_t[:ndata]
+
         x = self.train_x
         t = self.train_t
             
@@ -290,6 +293,8 @@ class NNSGDModel(NNModel):
     def __init__(self, batch_size = 20, learning_rate = 0.01, *args, **kwargs):
         super(NNSGDModel, self).__init__(*args, **kwargs)
         
+        self.batch_size = batch_size
+        
         rng = numpy.random.RandomState(42141)
 
                 # allocate symbolic variables for the data
@@ -305,6 +310,7 @@ class NNSGDModel(NNModel):
             n_hidden=self.n_hidden,
             n_out=10
             )
+        self.batchClassifier = batchClassifier
         
         assert len(batchClassifier.params) == len(self.classifier.params)  
               
@@ -320,7 +326,7 @@ class NNSGDModel(NNModel):
         gparamsBatch = [T.grad(batch_cost, param) for param in batchClassifier.params]
         
         
-        test_model = theano.function(
+        self.test_model = theano.function(
             inputs=[index],
             outputs=batchClassifier.errors(t),
             givens={
@@ -330,7 +336,7 @@ class NNSGDModel(NNModel):
 #             on_unused_input='warn'
         )
 
-        validate_model = theano.function(
+        self.validate_model = theano.function(
             inputs=[index],
             outputs=batchClassifier.errors(t),
             givens={
@@ -356,7 +362,7 @@ class NNSGDModel(NNModel):
         # compiling a Theano function `train_model` that returns the cost, but
         # in the same time updates the parameter of the model based on the rules
         # defined in `updates`
-        train_model = theano.function(
+        self.train_model = theano.function(
             inputs=[index],
             outputs=batch_cost,
             updates=updates,
@@ -366,13 +372,130 @@ class NNSGDModel(NNModel):
             }
         )
         
-    def sgd(self, coords):
-        class Dummy(object):
-            def __init__(self, coords):
-                self.coords = coords
+    def sgd(self, coords, n_epochs=100):
         
-        return Dummy(coords)
+        self.set_batch_params(coords)
+        
+        batch_size = self.batch_size
+        
+        # compute number of minibatches for training, validation and testing
+        n_train_batches = self.train_x.get_value(borrow=True).shape[0] / batch_size
+        n_valid_batches = self.valid_x.get_value(borrow=True).shape[0] / batch_size
+        n_test_batches = self.test_x.get_value(borrow=True).shape[0] / batch_size
+        
+        
+        ###############
+        # TRAIN MODEL #
+        ###############
+        print '... training'
     
+        # early-stopping parameters
+        patience = 10000  # look as this many examples regardless
+        patience_increase = 2  # wait this much longer when a new best is
+                               # found
+        improvement_threshold = 0.995  # a relative improvement of this much is
+                                       # considered significant
+        validation_frequency = min(n_train_batches, patience / 2)
+                                      # go through this many
+                                      # minibatche before checking the network
+                                      # on the validation set; in this case we
+                                      # check every epoch
+    
+        best_validation_loss = numpy.inf
+        best_iter = 0
+        test_score = 0.
+        start_time = time.clock()
+    
+        epoch = 0
+        done_looping = False
+    
+        while (epoch < n_epochs) and (not done_looping):
+            epoch = epoch + 1
+            for minibatch_index in xrange(n_train_batches):
+    
+                minibatch_avg_cost = self.train_model(minibatch_index)
+                # iteration number
+                iter = (epoch - 1) * n_train_batches + minibatch_index
+    
+                if (iter + 1) % validation_frequency == 0:
+                    # compute zero-one loss on validation set
+                    validation_losses = [self.validate_model(i) for i
+                                         in xrange(n_valid_batches)]
+                    this_validation_loss = numpy.mean(validation_losses)
+    
+                    print(
+                        'epoch %i, minibatch %i/%i, validation error %f %%' %
+                        (
+                            epoch,
+                            minibatch_index + 1,
+                            n_train_batches,
+                            this_validation_loss * 100.
+                        )
+                    )
+    
+                    # if we got the best validation score until now
+                    if this_validation_loss < best_validation_loss:
+                        #improve patience if loss improvement is good enough
+                        if (
+                            this_validation_loss < best_validation_loss *
+                            improvement_threshold
+                        ):
+                            patience = max(patience, iter * patience_increase)
+    
+                        best_validation_loss = this_validation_loss
+                        best_iter = iter
+    
+                        # test it on the test set
+                        test_losses = [self.test_model(i) for i
+                                       in xrange(n_test_batches)]
+                        test_score = numpy.mean(test_losses)
+    
+                        print(('     epoch %i, minibatch %i/%i, test error of '
+                               'best model %f %%') %
+                              (epoch, minibatch_index + 1, n_train_batches,
+                               test_score * 100.))
+    
+                if patience <= iter:
+                    done_looping = True
+                    break
+
+        minimized_coords = self.get_params()
+    
+        end_time = time.clock()
+        print(('Optimization complete. Best validation score of %f %% '
+               'obtained at iteration %i, with test performance %f %%') %
+              (best_validation_loss * 100., best_iter + 1, test_score * 100.))
+        print >> sys.stderr, ('The code for file ' +
+                              os.path.split(__file__)[1] +
+                              ' ran for %.2fm' % ((end_time - start_time) / 60.))
+      
+        print minimized_coords
+        print len(minimized_coords)
+        
+        return self.get_batch_params()
+    
+    def get_batch_params(self):
+        """ This gives parameters for sgd batch run
+        """
+        params = np.zeros(self.nparams)
+        i = 0
+        for p in self.batchClassifier.params:
+            p = p.get_value()
+            npar = p.size
+            params[i:i+npar] = p.ravel()
+            i += npar
+        return params
+    
+    def set_batch_params(self, params_vec):
+        """ This sets parameters for sgd batch run
+        """
+        assert params_vec.size == self.nparams
+        i = 0
+        for count, p in enumerate(self.batchClassifier.params):
+            npar = self.param_sizes[count]
+            p.set_value(params_vec[i:i+npar].reshape(self.param_shapes[count]))
+            i += npar  
+              
 def myquench(coords, pot, tol, **kwargs):
     """ This quench checks the rmsgrad condition is satisfied, and keeps quenching until this is the case
     """
@@ -390,9 +513,9 @@ def myquench(coords, pot, tol, **kwargs):
 
 def quench_with_sgd(coords, model, lbfgs_quench):
     
-    sgd_ret = model.sgd(coords)
+    sgd_coords = model.sgd(coords)
     
-    return lbfgs_quench(sgd_ret.coords)
+    return lbfgs_quench(sgd_coords)
     
     
 class NNSystem(MLSystem):
@@ -407,6 +530,7 @@ class NNSystem(MLSystem):
                                      nsteps=nsteps, M=M, iprint=iprint, 
                                      maxstep=maxstep, 
                                      **kwargs)
+            
         if hasattr(self.model, "sgd"):
             return lambda coords: quench_with_sgd(coords, self.model, lbfgs_quench)
         
