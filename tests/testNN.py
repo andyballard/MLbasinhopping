@@ -13,8 +13,9 @@ class CheckCorrectOutput(unittest.TestCase):
         
         np.random.seed(12345)
         
-        ndata = 500
-        n_hidden = 10
+        ndata = 10000
+#         n_hidden = 10
+        n_hidden = 500
         p = 2
         L2_reg=np.power(1.0e1, -p)
     #     L1_reg=np.power(1.0e1, -p)
@@ -30,8 +31,15 @@ class CheckCorrectOutput(unittest.TestCase):
     
     def test_minimizer(self):
         
-        quench = self.system.get_minimizer()
-        coords = np.random.random(self.system.model.nparams)
+        quench = self.system.get_minimizer(iprint=100)
+#         coords = np.random.random(self.system.model.nparams)
+        Nparams = self.system.model.nparams
+
+        coords = np.random.uniform(
+                    low=-np.sqrt(6. / Nparams),
+                    high=np.sqrt(6. / Nparams),
+                    size=Nparams
+                    )
         ret = quench(coords)
         self.assertAlmostEqual(ret.energy, 3.02478820124, msg="Error: Quenched energy = "+str(ret.energy))
            
